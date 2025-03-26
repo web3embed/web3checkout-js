@@ -1,0 +1,42 @@
+name: Auto Tag
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  create_tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required to fetch all history for Git commands
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          # Fetch all tags from remote
+          git fetch --tags
+          
+          # Get the latest tag or default to v0.0.0 if no tags exist
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Increment the patch version (you can modify this to increment minor/major as needed)
+          NEW_TAG=$(echo $LATEST_TAG | awk -F. '{printf("v%d.%d.%d", $1, $2, $3+1)}')
+          echo "New tag: $NEW_TAG"
+          
+          # Set outputs for subsequent steps
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create and push new tag
+        if: steps.get_tag.outputs.latest_tag != steps.get_tag.outputs.new_tag
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git tag -a ${{ steps.get_tag.outputs.new_tag }} -m "Automated tag for commit $GITHUB_SHA"
+          git push origin ${{ steps.get_tag.outputs.new_tag }}
